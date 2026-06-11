@@ -1,129 +1,127 @@
-# 🎮 Brawlhalla AI
+# Brawlhalla AI — Vision-Based Game Bot
 
-Интеллектуальный бот для [Brawlhalla](https://brawlhalla.com/) с компьютерным зрением, Kalman-трекингом и reinforcement learning.
+Autonomous AI player for Brawlhalla using computer vision (YOLOv8), Kalman filtering, and adaptive decision-making.
 
-## Архитектура
+## Features
+
+- **Real-time object detection** — YOLOv8 ONNX model running on GPU (CUDA)
+- **Advanced tracking** — 2D Kalman filters with temporal smoothing and predictive tracking
+- **Adaptive confidence threshold** — dynamically adjusts based on inference performance
+- **Multiple game modes**:
+  - `full` — complete autonomous control
+  - `assist` — AI assists while you control movement
+  - `combat` — attacks/shields only, manual movement
+  - `poke` — light attacks only, in-range engagement
+- **Stall detection & recovery** — automatic recovery from stuck states
+- **Performance monitoring** — real-time FPS, inference time, and pipeline stats
+
+## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Screen Cap │────>│ YOLO Vision  │────>│ Game State  │
-│  (mss/opencv)│    │ (GPU/CUDA)   │     │ (Kalman F.) │
-└─────────────┘     └──────────────┘     └──────┬──────┘
-                                                │
-┌─────────────┐     ┌──────────────┐            │
-│  Input Ctrl │<────│   AI Brain   │<───────────┘
-│ (keyboard)  │     │ (RL + Rules) │
-└─────────────┘     └──────────────┘
+capture_frame -> vision_client.infer() -> build_world_state()
+  -> ai.choose_action() -> resolve_action() -> input_controller.apply_keys()
 ```
 
-## Модули
+### Components
 
-| Файл | Описание |
-|------|----------|
-| `main.py` | Точка входа — запуск AI-бота |
-| `ai_brain.py` | Боевой ИИ: адаптивное обучение, стратегическое принятие решений, паттерны врагов |
-| `game_state.py` | Построение состояния игры: Kalman-фильтрация 2D, blast-zone awareness, предсказание траекторий |
-| `vision_client.py` | YOLO-инференс на GPU (RTX): детекция enemy/player/weapon/gadget с временным сглаживанием |
-| `ai_runner.py` | Цикл AI: frame budget management, stall recovery, adaptive FPS optimization |
-| `input_controller.py` | Управление клавиатурой: нажатия, задержки, комбо-ввод |
-| `screen_capture.py` | Захват экрана игры через mss/opencv с автодетекцией окна |
-| `movement_ai.py` | AI-движение: уклонение, позиционирование, edge recovery |
-| `neural_ai.py` | Нейросетевой модуль для предсказания действий |
-| `rl_trainer.py` | Reinforcement Learning тренер (PPO-style) |
-| `train_model.py` | Обучение YOLO-модели на датасете Brawlhalla |
-| `train_unified.py` | Унифицированный пайплайн обучения: vision + RL вместе |
-| `download_model.py` | Скачивание предобученных моделей с Roboflow/Kaggle |
-| `replay_system.py` | Система записи и воспроизведения матчей для анализа |
-| `gui.py` | PyQt6 интерфейс управления ботом |
-| `config.py` | Конфигурация: профили персонажей, matchup-таблицы, параметры обучения |
+| Module | Purpose |
+|--------|---------|
+| `vision_client.py` | YOLOv8 ONNX inference with GPU acceleration |
+| `game_state.py` | Kalman tracking, world state building, blast zone awareness |
+| `ai_brain.py` | Decision engine with character-specific profiles |
+| `ai_runner.py` | Main game loop with async pipeline support |
+| `input_controller.py` | Keyboard/mouse input simulation via X11 |
+| `config.py` | Character profiles, matchup data, training config |
 
-## Возможности
+## Requirements
 
-### Компьютерное зрение
-- **YOLOv8** детекция в реальном времени (45 FPS target)
-- 4 класса: `enemy`, `player`, `weapon`, `gadget`
-- Temporal smoothing — сглаживание позиций между кадрами
-- Adaptive confidence threshold
+- **Python 3.10+**
+- **NVIDIA GPU** (CUDA-enabled, tested with RTX 3070 Ti / 3090)
+- **Linux** (X11 window capture via `xdotool`)
+- Dependencies: `numpy`, `opencv-python`, `onnxruntime-gpu`
 
-### Трекинг и предсказание
-- **Kalman Filter 1D/2D** — фильтрация шума, предсказание траекторий
-- Blast-zone awareness — отслеживание зон выброса
-- Edge detection + recovery path planning
-
-### ИИ и обучение
-- Reinforcement Learning (PPO-style trainer)
-- Enemy pattern learning — запоминание паттернов противника
-- Strategic action scoring — оценка действий по контексту матча
-- Character-specific profiles и matchup таблицы
-
-## Установка
+### Install dependencies
 
 ```bash
-# Клонировать репозиторий
-git clone https://github.com/kamil12431234/brawlhalla-ai.git
 cd brawlhalla-ai
-
-# Создать виртуальное окружение
-python -m venv .venv && source .venv/bin/activate
-
-# Установить зависимости
-pip install -r requirements.txt
-
-# Скачать модель (если нужно)
-python download_model.py
+pip install numpy opencv-python onnxruntime-gpu
 ```
 
-## Быстрый старт
+## Usage
+
+### Full autonomous mode
 
 ```bash
-# Запустить бота
-./run.sh
-
-# Или через Python напрямую
 python main.py
-
-# Запустить GUI
-python gui.py
 ```
 
-### Конфигурация
-
-Переменные окружения:
-- `BH_CHARACTER` — персонаж (`balanced`, `aggressive`, `defensive`)
-- `ROBOFLOW_API_KEY` — ключ для скачивания моделей с Roboflow
-- `ROBOFLOW_VERSION` — версия модели (default: 5)
-
-## Обучение модели
+### Assist mode (you move, AI attacks)
 
 ```bash
-# Датасеты
-# Kaggle: https://www.kaggle.com/datasets/patrickgomes/brawlhalla-dataset
-# Roboflow: https://universe.roboflow.com/rasheds-workspace/brawlhalla-vision
-
-# Обучить YOLO модель
-python train_model.py
-
-# Унифицированное обучение (vision + RL)
-python train_unified.py
-
-# RL тренировка отдельно
-python rl_trainer.py
+python main.py --assist
 ```
 
-## Системные требования
+### Combat mode (attacks/shields only)
 
-- **OS**: Linux (Arch/Ubuntu), Windows с WSL
-- **GPU**: NVIDIA (CUDA 12+) — RTX 3060+ рекомендуется
-- **RAM**: 8GB минимум
-- **Python**: 3.10+
+```bash
+python main.py --combat
+```
 
-## Датасеты
+### Dry-run (no input, just logging)
 
-| Источник | Описание | Ссылка |
-|----------|----------|--------|
-| Kaggle | Brawlhalla dataset для AI training | [brawlhalla-dataset](https://www.kaggle.com/datasets/patrickgomes/brawlhalla-dataset) |
-| Roboflow | Vision detection dataset (annotated) | [brawlhalla-vision](https://universe.roboflow.com/rasheds-workspace/brawlhalla-vision) |
+```bash
+python main.py --dry-run
+```
 
-## Лицензия
+### Custom character & aggression
+
+```bash
+python main.py --character bodvar --aggressive 0.7
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BH_MODEL_PATH` | `./model/brawlhalla_vision.onnx` | Path to ONNX model |
+| `BH_DEVICE` | `cuda` | Inference device (`cuda` or `cpu`) |
+| `BH_CONF_THRESH` | `0.15` | Confidence threshold |
+| `BH_WIDTH` | `1280` | Capture window width |
+| `BH_HEIGHT` | `720` | Capture window height |
+| `ROBOFLOW_API_KEY` | — | Roboflow API key (for model updates) |
+
+## Model
+
+The project includes a pre-trained YOLOv8 model (`model/brawlhalla_vision.onnx`) detecting:
+- `player` — your character
+- `enemy` — opponent(s)
+- `gadget` / `weapon` — pickups and projectiles
+
+Train or update the model via Roboflow workspace `rasheds-workspace/brawlhalla-vision`.
+
+## Performance
+
+Target: **45 FPS** with ~13ms frame budget. Typical breakdown:
+- Capture: <20ms
+- Inference: <50ms (GPU)
+- Decision: <5ms
+- Input: <2ms
+
+## Project Structure
+
+```
+brawlhalla-ai/
+├── main.py              # Entry point
+├── ai_runner.py         # Game loop & async pipeline
+├── ai_brain.py          # AI decision engine
+├── vision_client.py     # YOLOv8 inference
+├── game_state.py        # Tracking & world state
+├── input_controller.py  # X11 input simulation
+├── config.py            # Config & character profiles
+├── replay_system.py     # Replay recording/analysis
+└── model/               # ONNX models
+```
+
+## License
 
 MIT
